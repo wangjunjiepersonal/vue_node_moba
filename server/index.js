@@ -5,6 +5,9 @@ const express = require("express")
 //创建express实例
 const app = express()
 
+//开放静态资源目录
+app.use('/uploads', express.static(__dirname + '/uploads'))
+
 //开启跨域请求
 app.use(require('cors')())
 //使用获取post提交请求数据
