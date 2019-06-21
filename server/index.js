@@ -8,6 +8,9 @@ const app = express()
 //开放静态资源目录
 app.use('/uploads', express.static(__dirname + '/uploads'))
 
+//token的密钥
+app.set('secret', 'i2u34y12oi3u4y8')
+
 //开启跨域请求
 app.use(require('cors')())
 //使用获取post提交请求数据

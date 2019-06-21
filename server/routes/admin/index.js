@@ -1,12 +1,15 @@
 module.exports = app => {
 	//引入express使用它的子路由Router()	
 	const express = require('express')
+  const assert = require('http-assert')
+  const jwt = require('jsonwebtoken')
+  const AdminUser = require('../../models/AdminUser')
 	const router = express.Router({
     mergeParams: true
   })	
 	
 	//创建分类
-	router.post('/', async (req,res) => {
+	router.post('/', async (req, res) => {
 		const model = await req.Model.create(req.body)
 		res.send(model)
 	})
@@ -26,7 +29,7 @@ module.exports = app => {
   })
 	
 	//获取分类
-	router.get('/', async (req,res) => {
+	router.get('/', async (req, res) => {
 		const queryOptions = {}
     if (req.Model.modelName === 'Category') {
       queryOptions.populate = 'parent'
@@ -36,26 +39,45 @@ module.exports = app => {
 	})
 	
 	//获取分类详情
-	router.get('/:id', async (req,res) => {
+	router.get('/:id', async (req, res) => {
 		const model = await req.Model.findById(req.params.id)
 		res.send(model)
 	})
 	
-	app.use('/admin/api/rest/:resource', async (req, res, next) => {
-		const modelName = require('inflection').classify(req.params.resource)
-		//给请求对象上挂载一个属性Model
-		req.Model = require(`../../models/${modelName}`)
-		next()
-	},router)
+	// 登录校验中间件
+  const authMiddleware = require('../../middleware/auth')
+  const resourceMiddleware = require('../../middleware/resource')
+	app.use('/admin/api/rest/:resource',authMiddleware(), resourceMiddleware(), router)
 	
 	
 	//处理图片上传请求
 	const multer = require('multer')
   const upload = multer({ dest: __dirname + '/../../uploads' })
-	app.post('/admin/api/upload', upload.single('file'), async (req, res) => {
+	app.post('/admin/api/upload', authMiddleware(), upload.single('file'), async (req, res) => {
 		//获取图片上传的信息  添加一个url返回去
     const file = req.file
     file.url = `http://localhost:3000/uploads/${file.filename}`
     res.send(file)
+  })
+	
+	//登录接口
+	app.post('/admin/api/login', async (req, res) => {
+    const { username, password } = req.body
+    // 1.根据用户名找用户
+    const user = await AdminUser.findOne({ username }).select('+password')
+    assert(user, 422, '用户不存在')
+    // 2.校验密码
+    const isValid = require('bcrypt').compareSync(password, user.password)
+    assert(isValid, 422, '密码错误')
+    // 3.返回token
+    const token = jwt.sign({ id: user._id }, app.get('secret'))
+    res.send({ token })
+  })
+	
+	//错误处理 处理asset抛出的异常报错
+	app.use(async (err, req, res, next) => {
+    res.status(err.statusCode || 500).send({
+      message: err.message
+    })
   })
 }
